@@ -1,0 +1,52 @@
+# Love_Arduino
+
+
+
+
+int in1=8;
+int in2=7;
+int in3=6;
+int in4=5;
+int pr_sensor=3; //analog pin 3
+int buzzer=2;    //digital pin 2
+void setup() {
+   
+  
+
+  pinMode(in1,OUTPUT);
+  pinMode(in2,OUTPUT);
+  pinMode(in3,OUTPUT);
+  pinMode(in4,OUTPUT);
+  pinMode(buzzer,OUTPUT);
+  pinMode(pr_sensor,INPUT);
+     
+  Serial.begin(9600);
+}
+
+void loop() {
+ 
+ 
+ int b=analogRead(pr_sensor);
+  
+  
+  Serial.println(b);
+  
+  
+ 
+if(b>0)
+ { 
+   digitalWrite(buzzer,HIGH);   
+   digitalWrite(in1,LOW);
+   digitalWrite(in2,LOW);
+   digitalWrite(in3,LOW);
+   digitalWrite(in4,LOW);
+ }
+ else
+ {digitalWrite(buzzer,LOW);
+ digitalWrite(in1,HIGH);
+  digitalWrite(in2,LOW);
+  digitalWrite(in3,HIGH);
+  digitalWrite(in4,LOW);
+ }
+  
+}
