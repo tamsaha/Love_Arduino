@@ -1,12 +1,16 @@
 # Love_Arduino
+//Wiring as follows....
+
+//L293D EN_1   --> +11.1V
+//L293D EN_2   --> +11.1V
+//IR Sensor    --> A3
+//Piezo Buzzer --> D2
 
 
-
-
-int in1=8;
-int in2=7;
-int in3=6;
-int in4=5;
+int in1=8;   //L293D IN_1 --> D8
+int in2=7;   //L293D IN_2 --> D7
+int in3=6;   //L293D IN_3 --> D6
+int in4=5;   //L293D IN_4 --> D8
 int pr_sensor=3; //analog pin 3
 int buzzer=2;    //digital pin 2
 void setup() {
