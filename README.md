@@ -1,2 +1,2 @@
 # Love_Arduino
-Project List done on Arduino.
+Project lists done on Arduino.
