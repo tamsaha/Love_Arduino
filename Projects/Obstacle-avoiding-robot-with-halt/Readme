@@ -1,0 +1,17 @@
+A basic prototype of obstacle detection vehicle based on Arduino.
+
+Bill of Materials:
+
+1. Arduino(like Uno)
+2. 1 x L293D(600mA motor driver)
+3. 1 x Piezo Buzzer
+4. 2 x bldc motors
+5. Chassis to mount motors and the whole setup.
+6. Some jumper wires for wiring
+7. 11.1V 1A battery(Preferably Lipo - lasts longer!) 
+8. A pair of wheels compatible with the bldc motors.
+
+
+
+Software:
+1. Arduino IDE(https://www.arduino.cc/en/Main/Software) installed in a working computer.
