@@ -1,0 +1,362 @@
+/*
+  Three Segment RGB Transition Simulator
+  For REAL WORLD useage, recommended analog value range is 50K~500K
+
+  Author  : Sandeepan Sengupta, Tamojit Saha
+  Dated   : July 2016
+*/
+
+/*Assigning RGB pins*/
+const     int   RGB_pin[3]      = {9, 10, 11};
+
+/*Assigning analog input pin*/
+const     int   analog_pin      = 0;
+
+/*No. of Samples*/
+const int whiteSamples          = 25;
+const int autoSamples           = 10;
+const int manualSamples         = 100;
+
+/* Monitor White Mode*/
+boolean isWhite                 = false;
+
+/*Initializing integers*/
+unsigned  int   counter         = NULL;
+unsigned  int   autoValue       = NULL;
+unsigned  int   valueRange      = NULL;
+unsigned  int   midway[2]       = {};
+
+/*Assigning value range*/
+unsigned  int   MAXIMUM         = 1023;
+unsigned  int   minimum         = 0;
+
+/*Assigning persistency range in milliseconds*/
+unsigned  int   show_MAX        = 15;
+unsigned  int   show_min        = 0;
+
+/*Initialize RGB features*/
+unsigned  int   RGB_mode        = NULL; //Mode Preset
+unsigned  int   RGB_value[3]    = {};
+unsigned  int   PWM_Code        = NULL;
+const     int   RGB_adjust[3]   = {};
+const     int   RGB_Balance     =  1;
+
+/*Button & Debounce Variables*/
+const     int   buttonPin       = 2;   //Digital pin to attatch button
+
+unsigned  int   Initial         = 1;    //Initialized Parameter to store state information
+unsigned  int   inputEvent      = 0;
+
+unsigned  int   Debounce        = 50;
+unsigned  int   Switch          = 100;
+
+unsigned  long  Timer           = NULL;
+unsigned  long  Interval        = NULL;
+
+unsigned  int   buttonState     = 0;
+unsigned  int   lastButtonState = 0;
+
+//#define __SERIAL_                      // Begin Serial Communication
+//#define __DEBUG_                       // For Printing Debug Texts
+//#define __PLOTTER_                     // For Serial Plotter
+#define __WHITE_CLICKS                   // Comment to exit WHITE MODE in 2 CLICKS
+
+void setup()
+{
+#ifdef __SERIAL_
+  Serial.begin(9600);
+  //  while (!Serial);
+#endif
+
+  /*Configuring I/O*/
+  for (int pins = 0; pins < 3; pins++)
+    {
+      pinMode(RGB_pin[pins], OUTPUT);
+    }
+   pinMode(buttonPin, INPUT); 
+   pinMode(analog_pin, INPUT); 
+
+  /*Checking and resetting range in ascending order*/
+  if (MAXIMUM < minimum)
+  {
+    MAXIMUM   = minimum + MAXIMUM - (minimum = MAXIMUM);  //Range RESET
+  }
+
+  /*Calculating value range*/
+  valueRange  = MAXIMUM - minimum;
+
+  /*Calculating two midways*/
+  midway[0]   = (valueRange * 1) / 3;
+  midway[1]   = (valueRange * 2) / 3;
+
+  /*Timing Calculation*/
+    if (Debounce >=  Switch)
+    {
+    Switch  = Debounce * 2;
+    }
+}
+/*~~~~~~~~End of "void setup()"~~~~~~~~*/
+
+void loop()
+{
+  /*----Initializing Integers----*/
+  unsigned  int rawADC;
+  unsigned  int manualValue;
+  unsigned  int persistency;
+  /*----Integers Initialized----*/
+
+
+  /*----Mode selector----*/
+  unsigned  int Trigger = Switch * 25;
+  unsigned  int Sleep   = Trigger * 2;
+  buttonState = digitalRead(buttonPin);
+  if ( buttonState == HIGH)
+  {
+    lastButtonState = buttonState;
+    if (lastButtonState == 1)
+    {
+      buttonState = 0;
+    }
+    delay(50);
+    buttonState = digitalRead(buttonPin);
+
+#ifdef __DEBUG_
+    Serial.print("Button State Now = "); Serial.println(buttonState);
+    Serial.print("last Button State = "); Serial.println(lastButtonState);
+#endif
+
+    if (Initial == 1)
+    {
+      Timer = millis();                                   //Start timer
+
+      Initial = 0;                                        //RESET 'Initial'
+    }
+    Interval  = millis() - Timer;
+
+    if (Switch * 6 > Interval && Interval > Debounce)
+    {
+      if (buttonState == 0)
+      {
+        RGB_mode  = !RGB_mode;
+        //Switch between AUTO and MANUAL mode
+      }
+    }
+    /*...........White................*/
+    if ((Trigger + Debounce) > Interval && Interval > (Trigger - Debounce))
+    {
+      int flag = 0;
+
+      RGB_mode  = 2;
+      if (Initial == 0)
+      {
+        buttonState       =     0;
+        isWhite           =     true;
+        while (isWhite != false)
+        {
+          int analog_Filtered         =    medianFilter(analog_pin, whiteSamples);
+          unsigned int whiteBright    =    map(analog_Filtered, minimum, MAXIMUM, 0, 255);
+
+#ifdef __DEBUG_
+          Serial.print("Analog RAW pot value = ");
+          Serial.println(analog_Filtered);
+#endif
+#ifdef __PLOTTER_
+          Serial.print(analogRead(A0));
+          Serial.print("\t");
+          Serial.print(analog_Filtered);
+          Serial.print("\t");
+          Serial.print(whiteBright);
+          Serial.print("\n");
+#endif
+          RGB_value[0]  =   whiteBright;
+          RGB_value[1]  =   whiteBright;
+          RGB_value[2]  =   whiteBright;
+          setRGB(RGB_value, RGB_pin, persistency);
+          buttonState = digitalRead(buttonPin);
+
+          if (buttonState == 0)
+          {
+            flag        =   1;
+          }
+          if (flag == 1)
+          {
+            delay(50);
+            if (digitalRead(buttonPin) == HIGH)
+            {
+              isWhite   =   false;
+              flag      =   0;
+              
+#ifdef __WHITE_CLICKS
+              Initial   =   1;
+#endif
+              break;
+            }
+          }
+        }
+        /*----End of WHITE mode----*/
+      }
+    }
+  }
+
+  else if (Initial == 0)
+  {
+    Initial = 1;                                          //RESET 'Initial'
+  }
+  /*----End of mode selector----*/
+
+  /*----AUTO mode----*/
+  if (RGB_mode == 0)
+  {
+    /*Calculation for "autoValue" and "persistancy"*/
+    if (counter == valueRange)
+    {
+      counter         = NULL; //RESET
+    }
+    autoValue         = counter;
+    counter++;
+    rawADC = medianFilter(analog_pin, autoSamples);
+    persistency       = map(rawADC, minimum, MAXIMUM, show_min, show_MAX);
+
+    /*Generation of RGB data*/
+    if (minimum <= autoValue && autoValue < midway[0])
+    {
+      //Mapping analog values into PWM range
+      PWM_Code        = map(autoValue, minimum, midway[0], 0, 255);
+      //Generating PWM codes for RGB
+      RGB_value[0]    = 255 - PWM_Code;
+      RGB_value[1]    = PWM_Code;
+      RGB_value[2]    = NULL;
+    }
+    else if (midway[0] <= autoValue && autoValue <= midway[1])
+    {
+      //Mapping analog values into PWM range
+      PWM_Code        = map(autoValue, midway[0], midway[1], 0, 255);
+
+      //Generating PWM codes for RGB
+      RGB_value[0]    = NULL;
+      RGB_value[1]    = 255 - PWM_Code;
+      RGB_value[2]    = PWM_Code;
+    }
+    else if (midway[1] < autoValue && autoValue <= MAXIMUM)
+    {
+      //Mapping analog values into PWM range
+      PWM_Code        = map(autoValue, midway[1], MAXIMUM, 0, 255);
+
+      //Generating PWM codes for RGB
+      RGB_value[0]    = PWM_Code;
+      RGB_value[1]    = NULL;
+      RGB_value[2]    = 255 - PWM_Code;
+    }
+    /*Applying adjusts*/
+    adjustRGB(RGB_value, RGB_adjust);
+    setRGB(RGB_value, RGB_pin, persistency);
+  }
+
+  /*----End of AUTO mode----*/
+
+
+  /*----MANUAL mode----*/
+  if (RGB_mode == 1)
+  {
+    /*Calculation for "manualValue" and "persistancy"*/
+    rawADC          =  medianFilter(analog_pin, manualSamples);
+    manualValue     = map(rawADC, 0, 1023, minimum, MAXIMUM);
+    persistency     = 5;
+    PWM_Code        = 0;
+    if (minimum <= manualValue && manualValue < midway[0])
+    {
+      //Mapping analog values into PWM range
+      PWM_Code      = map(manualValue, minimum, midway[0], 0, 255);
+
+      //Generating PWM codes for RGB
+      RGB_value[0]  = 255 - PWM_Code;
+      RGB_value[1]  = PWM_Code;
+      RGB_value[2]  = RGB_Balance;
+    }
+    else if (midway[0] <= manualValue && manualValue <= midway[1])
+    {
+      //Mapping analog values into PWM range
+      PWM_Code      = map(manualValue, midway[0], midway[1], 0, 255);
+
+      //Generating PWM codes for RGB
+      RGB_value[0]  = RGB_Balance;
+      RGB_value[1]  = 255 - PWM_Code;
+      RGB_value[2]  = PWM_Code;
+    }
+    else if (midway[1] < manualValue && manualValue <= MAXIMUM)
+    {
+      //Mapping analog values into PWM range
+      PWM_Code      = map(manualValue, midway[1], MAXIMUM, 0, 255);
+
+      //Generating PWM codes for RGB
+      RGB_value[0]  = PWM_Code;
+      RGB_value[1]  = RGB_Balance;
+      RGB_value[2]  = 255 - PWM_Code;
+    }
+    /*Applying adjusts*/
+    adjustRGB(RGB_value, RGB_adjust);
+    setRGB(RGB_value, RGB_pin, persistency);
+  }
+  /*----End of MANUAL mode----*/
+}
+/*~~~~~~~~End of "void loop()"~~~~~~~~*/
+
+
+int medianFilter(const int pin, const int samples)    //Function of median based filter
+{
+  int i, j, k;
+  int analog_tmp;
+  unsigned int potRaw[samples];
+  analogRead(pin);
+  delay(1);
+  for (k = 0; k < samples; k++ )
+  {
+    potRaw[k] = analogRead(pin);
+  }
+  for (j = 0 ; j < (samples - 1) ; j++)
+  {
+    for (i = 0 ; i < (samples - 1) ; i++)
+    {
+      if (potRaw[i + 1] < potRaw[i])
+      {
+        //Rearranging values in order
+        potRaw[i + 1] = potRaw[i] + potRaw[i + 1] - (potRaw[i] = potRaw[i + 1]);
+      }
+    }
+  }
+  if (samples % 2 != 0)
+  {
+    analog_tmp = potRaw[((samples + 1) / 2) - 1];
+  }
+  else
+  {
+    analog_tmp = (potRaw[(samples / 2) - 1] + potRaw[samples / 2]) / 2;
+  }
+  return analog_tmp;
+}
+
+/*Function to adjust color deviation*/
+void adjustRGB(unsigned int valueArray[3], const int adjustArray[3])
+{
+  /*Applying adjusts*/
+  valueArray[0]    +=  adjustArray[0];
+  valueArray[1]    +=  adjustArray[1];
+  valueArray[2]    +=  adjustArray[2];
+}
+
+/*Function to SET RGB*/
+void setRGB(unsigned int valueArray[3], const int pinArray[3], unsigned  int displayTime)
+{
+  /*Constraining RGB values*/
+  valueArray[0]    = constrain(valueArray[0], 0, 255);
+  valueArray[1]    = constrain(valueArray[1], 0, 255);
+  valueArray[2]    = constrain(valueArray[2], 0, 255);
+
+  /*Setting RGB Color*/
+  analogWrite(pinArray[0], valueArray[0]);  //RED
+  analogWrite(pinArray[1], valueArray[1]);  //GREEN
+  analogWrite(pinArray[2], valueArray[2]);  //BLUE
+
+  /*Set display time*/
+  delay(displayTime);
+}
